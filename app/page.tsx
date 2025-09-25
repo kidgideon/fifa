@@ -70,7 +70,7 @@ const Home: React.FC = () => {
       const snap: QuerySnapshot<DocumentData> = await getDocs(collection(db, collectionName));
       const data: T[] = snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as T) }));
       setData(data);
-    } catch (err) {
+    } catch {
       toast.error(`Failed to fetch ${collectionName}`);
     } finally {
       setLoading(false);
@@ -158,7 +158,6 @@ const Home: React.FC = () => {
 
   return (
     <div className="container">
-      {/* Tabs */}
       <div className="tabs fade-in">
         {["players", "clubs", "trophies"].map(tab => (
           <div
@@ -171,11 +170,10 @@ const Home: React.FC = () => {
         ))}
       </div>
 
-      {/* Tab Content */}
       {activeTab === "players" && (
         <TabList
           items={players}
-          renderItem={(p: Player, idx) => (
+          renderItem={(p, idx) => (
             <Card key={p.id} idx={idx}>
               <Image src={p.pfp} alt={p.fullName} width={64} height={64} style={{ borderRadius: "50%", objectFit: "cover" }} unoptimized />
               <div className="card-info">
@@ -195,6 +193,7 @@ const Home: React.FC = () => {
               playerImageFile={playerImageFile}
               setPlayerImageFile={setPlayerImageFile}
               handleAdd={handleAddPlayer}
+              setShowAdd={setShowAddPlayer}
               loadingAction={loadingAction}
             />
           )}
@@ -204,7 +203,7 @@ const Home: React.FC = () => {
       {activeTab === "clubs" && (
         <TabList
           items={clubs}
-          renderItem={(c: Club, idx) => (
+          renderItem={(c, idx) => (
             <Card key={c.id} idx={idx}>
               <Image src={c.logo} alt={c.name} width={64} height={64} style={{ borderRadius: "50%", objectFit: "cover" }} unoptimized />
               <div className="card-info">
@@ -222,6 +221,7 @@ const Home: React.FC = () => {
               clubLogoFile={clubLogoFile}
               setClubLogoFile={setClubLogoFile}
               handleAdd={handleAddClub}
+              setShowAdd={setShowAddClub}
               loadingAction={loadingAction}
             />
           )}
@@ -231,7 +231,7 @@ const Home: React.FC = () => {
       {activeTab === "trophies" && (
         <TabList
           items={trophies}
-          renderItem={(t: Trophy, idx) => (
+          renderItem={(t, idx) => (
             <Card key={t.id} idx={idx}>
               <Image src={t.image} alt={t.name} width={64} height={64} style={{ borderRadius: "50%", objectFit: "cover" }} unoptimized />
               <div className="card-info">
@@ -251,6 +251,7 @@ const Home: React.FC = () => {
               trophyImageFile={trophyImageFile}
               setTrophyImageFile={setTrophyImageFile}
               handleAdd={handleAddTrophy}
+              setShowAdd={setShowAddTrophy}
               loadingAction={loadingAction}
             />
           )}
@@ -262,18 +263,11 @@ const Home: React.FC = () => {
   );
 };
 
-// Reusable components
 const Card: React.FC<{ idx: number; children: React.ReactNode }> = ({ idx, children }) => (
   <div className="card slide-in" style={{ animationDelay: `${idx * 60}ms` }}>{children}</div>
 );
 
-const TabList = <T,>({
-  items,
-  renderItem,
-  showAdd,
-  setShowAdd,
-  renderAddForm,
-}: {
+const TabList = <T,>({ items, renderItem, showAdd, setShowAdd, renderAddForm }: {
   items: T[];
   renderItem: (item: T, idx: number) => React.ReactNode;
   showAdd: boolean;
@@ -296,10 +290,21 @@ const TabList = <T,>({
   </div>
 );
 
-// Individual Add Forms (simplified)
-const AddPlayerForm = ({ clubs, newPlayer, setNewPlayer, playerImageFile, setPlayerImageFile, handleAdd, loadingAction }: any) => (
+// Form Props
+interface AddPlayerProps {
+  clubs: Club[];
+  newPlayer: Partial<Player>;
+  setNewPlayer: React.Dispatch<React.SetStateAction<Partial<Player>>>;
+  playerImageFile: File | null;
+  setPlayerImageFile: React.Dispatch<React.SetStateAction<File | null>>;
+  handleAdd: () => void;
+  setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
+  loadingAction: boolean;
+}
+
+const AddPlayerForm: React.FC<AddPlayerProps> = ({ clubs, newPlayer, setNewPlayer, playerImageFile, setPlayerImageFile, handleAdd, setShowAdd, loadingAction }) => (
   <div className="popup popup-animate">
-    <i className="fa-solid fa-x close" onClick={() => setNewPlayer({})}></i>
+    <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Player</h2>
     <input type="file" accept="image/*" onChange={e => e.target.files && setPlayerImageFile(e.target.files[0])} />
     <input type="text" placeholder="Full Name" onChange={e => setNewPlayer({ ...newPlayer, fullName: e.target.value })} />
@@ -307,7 +312,7 @@ const AddPlayerForm = ({ clubs, newPlayer, setNewPlayer, playerImageFile, setPla
     <input type="text" placeholder="Nationality" onChange={e => setNewPlayer({ ...newPlayer, nationality: e.target.value })} />
     <select onChange={e => setNewPlayer({ ...newPlayer, club: e.target.value })}>
       <option value="">Select Club</option>
-      {clubs.map((c: Club) => <option key={c.id} value={c.name}>{c.name}</option>)}
+      {clubs.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
     </select>
     <input type="number" placeholder="Goals" onChange={e => setNewPlayer({ ...newPlayer, goals: e.target.valueAsNumber })} />
     <input type="number" placeholder="Assists" onChange={e => setNewPlayer({ ...newPlayer, assists: e.target.valueAsNumber })} />
@@ -315,9 +320,19 @@ const AddPlayerForm = ({ clubs, newPlayer, setNewPlayer, playerImageFile, setPla
   </div>
 );
 
-const AddClubForm = ({ newClub, setNewClub, clubLogoFile, setClubLogoFile, handleAdd, loadingAction }: any) => (
+interface AddClubProps {
+  newClub: Partial<Club>;
+  setNewClub: React.Dispatch<React.SetStateAction<Partial<Club>>>;
+  clubLogoFile: File | null;
+  setClubLogoFile: React.Dispatch<React.SetStateAction<File | null>>;
+  handleAdd: () => void;
+  setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
+  loadingAction: boolean;
+}
+
+const AddClubForm: React.FC<AddClubProps> = ({ newClub, setNewClub, clubLogoFile, setClubLogoFile, handleAdd, setShowAdd, loadingAction }) => (
   <div className="popup popup-animate">
-    <i className="fa-solid fa-x close" onClick={() => setNewClub({})}></i>
+    <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Club</h2>
     <input type="file" accept="image/*" onChange={e => e.target.files && setClubLogoFile(e.target.files[0])} />
     <input type="text" placeholder="Club Name" onChange={e => setNewClub({ ...newClub, name: e.target.value })} />
@@ -327,15 +342,26 @@ const AddClubForm = ({ newClub, setNewClub, clubLogoFile, setClubLogoFile, handl
   </div>
 );
 
-const AddTrophyForm = ({ clubs, newTrophy, setNewTrophy, trophyImageFile, setTrophyImageFile, handleAdd, loadingAction }: any) => (
+interface AddTrophyProps {
+  clubs: Club[];
+  newTrophy: Partial<Trophy>;
+  setNewTrophy: React.Dispatch<React.SetStateAction<Partial<Trophy>>>;
+  trophyImageFile: File | null;
+  setTrophyImageFile: React.Dispatch<React.SetStateAction<File | null>>;
+  handleAdd: () => void;
+  setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
+  loadingAction: boolean;
+}
+
+const AddTrophyForm: React.FC<AddTrophyProps> = ({ clubs, newTrophy, setNewTrophy, trophyImageFile, setTrophyImageFile, handleAdd, setShowAdd, loadingAction }) => (
   <div className="popup popup-animate">
-    <i className="fa-solid fa-x close" onClick={() => setNewTrophy({ awards: [] })}></i>
+    <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Trophy</h2>
     <input type="file" accept="image/*" onChange={e => e.target.files && setTrophyImageFile(e.target.files[0])} />
     <input type="text" placeholder="Trophy Name" onChange={e => setNewTrophy({ ...newTrophy, name: e.target.value })} />
     <select value={newTrophy.winnerId || ""} onChange={e => setNewTrophy({ ...newTrophy, winnerId: e.target.value || undefined })}>
       <option value="">Select Winning Club (optional)</option>
-      {clubs.map((c: Club) => <option key={c.id} value={c.id}>{c.name}</option>)}
+      {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
     </select>
     {["Golden Boot", "MVP", "Best Defender", "Best Midfielder", "Best Goalkeeper"].map(award => (
       <label key={award} style={{ display: "block" }}>
