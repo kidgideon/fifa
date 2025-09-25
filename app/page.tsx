@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { db, storage } from "../lib/firebase";
 import { collection, getDocs, addDoc, DocumentData, QuerySnapshot } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { toast } from "sonner";
 import Image from "next/image";
 import "./page.css";
@@ -64,6 +64,11 @@ const Home: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingAction, setLoadingAction] = useState(false);
 
+  // Progress states for uploads
+  const [playerUploadProgress, setPlayerUploadProgress] = useState<number>(0);
+  const [clubUploadProgress, setClubUploadProgress] = useState<number>(0);
+  const [trophyUploadProgress, setTrophyUploadProgress] = useState<number>(0);
+
   const fetchCollection = async <T,>(collectionName: string, setData: React.Dispatch<React.SetStateAction<T[]>>) => {
     try {
       setLoading(true);
@@ -83,17 +88,45 @@ const Home: React.FC = () => {
     fetchCollection<Trophy>("trophies", setTrophies);
   }, []);
 
-  const uploadImage = async (file: File, path: string): Promise<string> => {
-    const storageRef = ref(storage, path);
-    await uploadBytes(storageRef, file);
-    return await getDownloadURL(storageRef);
+  // Upload with progress
+  const uploadImage = async (
+    file: File,
+    path: string,
+    setProgress: (n: number) => void
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const storageRef = ref(storage, path);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on(
+        "state_changed",
+        (snapshot) => {
+          const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+          setProgress(progress);
+        },
+        (error) => {
+          setProgress(0);
+          reject(error);
+        },
+        async () => {
+          setProgress(100);
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(url);
+        }
+      );
+    });
   };
 
   const handleAddPlayer = async () => {
     if (!playerImageFile || !newPlayer.fullName || !newPlayer.club) return toast.error("Missing required fields");
     try {
       setLoadingAction(true);
-      const pfpUrl = await uploadImage(playerImageFile, `players/${Date.now()}-${playerImageFile.name}`);
+      setPlayerUploadProgress(0);
+      const pfpUrl = await uploadImage(
+        playerImageFile,
+        `players/${Date.now()}-${playerImageFile.name}`,
+        setPlayerUploadProgress
+      );
       const docRef = await addDoc(collection(db, "players"), {
         fullName: newPlayer.fullName,
         age: newPlayer.age || 0,
@@ -112,6 +145,7 @@ const Home: React.FC = () => {
       toast.error("Failed to add player");
     } finally {
       setLoadingAction(false);
+      setPlayerUploadProgress(0);
     }
   };
 
@@ -119,7 +153,12 @@ const Home: React.FC = () => {
     if (!clubLogoFile || !newClub.name || !newClub.president || !newClub.coach) return toast.error("Missing required fields");
     try {
       setLoadingAction(true);
-      const logoUrl = await uploadImage(clubLogoFile, `clubs/${Date.now()}-${clubLogoFile.name}`);
+      setClubUploadProgress(0);
+      const logoUrl = await uploadImage(
+        clubLogoFile,
+        `clubs/${Date.now()}-${clubLogoFile.name}`,
+        setClubUploadProgress
+      );
       const docRef = await addDoc(collection(db, "clubs"), { ...newClub, logo: logoUrl });
       setClubs([...clubs, { ...newClub, id: docRef.id, logo: logoUrl } as Club]);
       setNewClub({});
@@ -130,6 +169,7 @@ const Home: React.FC = () => {
       toast.error("Failed to add club");
     } finally {
       setLoadingAction(false);
+      setClubUploadProgress(0);
     }
   };
 
@@ -137,7 +177,12 @@ const Home: React.FC = () => {
     if (!trophyImageFile || !newTrophy.name) return toast.error("Missing required fields");
     try {
       setLoadingAction(true);
-      const imgUrl = await uploadImage(trophyImageFile, `trophies/${Date.now()}-${trophyImageFile.name}`);
+      setTrophyUploadProgress(0);
+      const imgUrl = await uploadImage(
+        trophyImageFile,
+        `trophies/${Date.now()}-${trophyImageFile.name}`,
+        setTrophyUploadProgress
+      );
       const docRef = await addDoc(collection(db, "trophies"), {
         ...newTrophy,
         image: imgUrl,
@@ -153,6 +198,7 @@ const Home: React.FC = () => {
       toast.error("Failed to add trophy");
     } finally {
       setLoadingAction(false);
+      setTrophyUploadProgress(0);
     }
   };
 
@@ -195,6 +241,7 @@ const Home: React.FC = () => {
               handleAdd={handleAddPlayer}
               setShowAdd={setShowAddPlayer}
               loadingAction={loadingAction}
+              uploadProgress={playerUploadProgress}
             />
           )}
         />
@@ -223,6 +270,7 @@ const Home: React.FC = () => {
               handleAdd={handleAddClub}
               setShowAdd={setShowAddClub}
               loadingAction={loadingAction}
+              uploadProgress={clubUploadProgress}
             />
           )}
         />
@@ -253,6 +301,7 @@ const Home: React.FC = () => {
               handleAdd={handleAddTrophy}
               setShowAdd={setShowAddTrophy}
               loadingAction={loadingAction}
+              uploadProgress={trophyUploadProgress}
             />
           )}
         />
@@ -300,9 +349,13 @@ interface AddPlayerProps {
   handleAdd: () => void;
   setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
   loadingAction: boolean;
+  uploadProgress: number;
 }
 
-const AddPlayerForm: React.FC<AddPlayerProps> = ({ clubs, newPlayer, setNewPlayer, playerImageFile, setPlayerImageFile, handleAdd, setShowAdd, loadingAction }) => (
+const AddPlayerForm: React.FC<AddPlayerProps> = ({
+  clubs, newPlayer, setNewPlayer, playerImageFile, setPlayerImageFile,
+  handleAdd, setShowAdd, loadingAction, uploadProgress
+}) => (
   <div className="popup popup-animate">
     <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Player</h2>
@@ -316,7 +369,11 @@ const AddPlayerForm: React.FC<AddPlayerProps> = ({ clubs, newPlayer, setNewPlaye
     </select>
     <input type="number" placeholder="Goals" onChange={e => setNewPlayer({ ...newPlayer, goals: e.target.valueAsNumber })} />
     <input type="number" placeholder="Assists" onChange={e => setNewPlayer({ ...newPlayer, assists: e.target.valueAsNumber })} />
-    <button onClick={handleAdd} disabled={loadingAction}>{loadingAction ? "Adding..." : "Add Player"}</button>
+    <button onClick={handleAdd} disabled={loadingAction}>
+      {loadingAction
+        ? `Uploading... ${uploadProgress}%`
+        : "Add Player"}
+    </button>
   </div>
 );
 
@@ -328,9 +385,13 @@ interface AddClubProps {
   handleAdd: () => void;
   setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
   loadingAction: boolean;
+  uploadProgress: number;
 }
 
-const AddClubForm: React.FC<AddClubProps> = ({ newClub, setNewClub, clubLogoFile, setClubLogoFile, handleAdd, setShowAdd, loadingAction }) => (
+const AddClubForm: React.FC<AddClubProps> = ({
+  newClub, setNewClub, clubLogoFile, setClubLogoFile,
+  handleAdd, setShowAdd, loadingAction, uploadProgress
+}) => (
   <div className="popup popup-animate">
     <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Club</h2>
@@ -338,7 +399,11 @@ const AddClubForm: React.FC<AddClubProps> = ({ newClub, setNewClub, clubLogoFile
     <input type="text" placeholder="Club Name" onChange={e => setNewClub({ ...newClub, name: e.target.value })} />
     <input type="text" placeholder="President Name" onChange={e => setNewClub({ ...newClub, president: e.target.value })} />
     <input type="text" placeholder="Coach Name" onChange={e => setNewClub({ ...newClub, coach: e.target.value })} />
-    <button onClick={handleAdd} disabled={loadingAction}>{loadingAction ? "Adding..." : "Add Club"}</button>
+    <button onClick={handleAdd} disabled={loadingAction}>
+      {loadingAction
+        ? `Uploading... ${uploadProgress}%`
+        : "Add Club"}
+    </button>
   </div>
 );
 
@@ -351,9 +416,13 @@ interface AddTrophyProps {
   handleAdd: () => void;
   setShowAdd: React.Dispatch<React.SetStateAction<boolean>>;
   loadingAction: boolean;
+  uploadProgress: number;
 }
 
-const AddTrophyForm: React.FC<AddTrophyProps> = ({ clubs, newTrophy, setNewTrophy, trophyImageFile, setTrophyImageFile, handleAdd, setShowAdd, loadingAction }) => (
+const AddTrophyForm: React.FC<AddTrophyProps> = ({
+  clubs, newTrophy, setNewTrophy, trophyImageFile, setTrophyImageFile,
+  handleAdd, setShowAdd, loadingAction, uploadProgress
+}) => (
   <div className="popup popup-animate">
     <i className="fa-solid fa-x close" onClick={() => setShowAdd(false)}></i>
     <h2>Add Trophy</h2>
@@ -377,7 +446,11 @@ const AddTrophyForm: React.FC<AddTrophyProps> = ({ clubs, newTrophy, setNewTroph
         /> {award}
       </label>
     ))}
-    <button onClick={handleAdd} disabled={loadingAction}>{loadingAction ? "Adding..." : "Add Trophy"}</button>
+    <button onClick={handleAdd} disabled={loadingAction}>
+      {loadingAction
+        ? `Uploading... ${uploadProgress}%`
+        : "Add Trophy"}
+    </button>
   </div>
 );
 
