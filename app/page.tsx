@@ -1,0 +1,413 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { db, storage } from "../lib/firebase";
+import { collection, getDocs, addDoc } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { toast } from "sonner";
+import "./page.css";
+
+interface Player {
+  id: string;
+  fullName: string;
+  age: number;
+  nationality: string;
+  club: string;
+  goals: number;
+  assists: number;
+  pfp: string;
+}
+
+interface Club {
+  id: string;
+  name: string;
+  logo: string;
+  president: string;
+  coach: string;
+}
+
+interface Trophy {
+  id: string;
+  name: string;
+  image: string;
+  winnerId: string;
+  awards: string[];
+}
+
+const LoadingSpinner = () => (
+  <div className="loading-spinner">
+    <div className="lds-ring">
+      <div></div><div></div><div></div><div></div>
+    </div>
+    <span>Loading...</span>
+  </div>
+);
+
+const Home: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<"players" | "clubs" | "trophies">("players");
+
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [trophies, setTrophies] = useState<Trophy[]>([]);
+
+  const [showAddPlayer, setShowAddPlayer] = useState(false);
+  const [newPlayer, setNewPlayer] = useState<Partial<Player>>({});
+  const [playerImageFile, setPlayerImageFile] = useState<File | null>(null);
+
+  const [showAddClub, setShowAddClub] = useState(false);
+  const [newClub, setNewClub] = useState<Partial<Club>>({});
+  const [clubLogoFile, setClubLogoFile] = useState<File | null>(null);
+
+  const [showAddTrophy, setShowAddTrophy] = useState(false);
+  const [newTrophy, setNewTrophy] = useState<Partial<Trophy>>({ awards: [] });
+  const [trophyImageFile, setTrophyImageFile] = useState<File | null>(null);
+
+  // Loading and error states
+  const [loading, setLoading] = useState(false);
+  const [loadingAction, setLoadingAction] = useState(false);
+
+  // Fetch functions
+  const fetchPlayers = async () => {
+    try {
+      setLoading(true);
+      const snap = await getDocs(collection(db, "players"));
+      const data: Player[] = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as any) }));
+      setPlayers(data);
+    } catch (err: any) {
+      toast.error("Failed to fetch players");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchClubs = async () => {
+    try {
+      setLoading(true);
+      const snap = await getDocs(collection(db, "clubs"));
+      const data: Club[] = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as any) }));
+      setClubs(data);
+    } catch (err: any) {
+      toast.error("Failed to fetch clubs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTrophies = async () => {
+    try {
+      setLoading(true);
+      const snap = await getDocs(collection(db, "trophies"));
+      const data: Trophy[] = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() as any) }));
+      setTrophies(data);
+    } catch (err: any) {
+      toast.error("Failed to fetch trophies");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlayers();
+    fetchClubs();
+    fetchTrophies();
+    // eslint-disable-next-line
+  }, []);
+
+  const uploadImage = async (file: File, path: string) => {
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file);
+    const url = await getDownloadURL(storageRef);
+    return url;
+  };
+
+  // Add handlers
+  const handleAddPlayer = async () => {
+    try {
+      setLoadingAction(true);
+      if (!playerImageFile || !newPlayer.fullName || !newPlayer.club) return;
+      const pfpUrl = await uploadImage(playerImageFile, `players/${Date.now()}-${playerImageFile.name}`);
+      const docRef = await addDoc(collection(db, "players"), {
+        fullName: newPlayer.fullName,
+        age: newPlayer.age || 0,
+        nationality: newPlayer.nationality || "",
+        club: newPlayer.club,
+        goals: newPlayer.goals || 0,
+        assists: newPlayer.assists || 0,
+        pfp: pfpUrl,
+      });
+      setPlayers([...players, { ...newPlayer, id: docRef.id, pfp: pfpUrl } as Player]);
+      setNewPlayer({});
+      setPlayerImageFile(null);
+      setShowAddPlayer(false);
+      toast.success("Player added!");
+    } catch (err: any) {
+      toast.error("Failed to add player");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const handleAddClub = async () => {
+    try {
+      setLoadingAction(true);
+      if (!clubLogoFile || !newClub.name || !newClub.president || !newClub.coach) return;
+      const logoUrl = await uploadImage(clubLogoFile, `clubs/${Date.now()}-${clubLogoFile.name}`);
+      const docRef = await addDoc(collection(db, "clubs"), { ...newClub, logo: logoUrl });
+      setClubs([...clubs, { ...newClub, id: docRef.id, logo: logoUrl } as Club]);
+      setNewClub({});
+      setClubLogoFile(null);
+      setShowAddClub(false);
+      toast.success("Club added!");
+    } catch (err: any) {
+      toast.error("Failed to add club");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  const handleAddTrophy = async () => {
+    try {
+      setLoadingAction(true);
+      if (!trophyImageFile || !newTrophy.name) return; // winnerId is now optional
+      const imgUrl = await uploadImage(
+        trophyImageFile,
+        `trophies/${Date.now()}-${trophyImageFile.name}`
+      );
+      const docRef = await addDoc(collection(db, "trophies"), {
+        ...newTrophy,
+        image: imgUrl,
+        // If winnerId is empty string or undefined, don't include it
+        ...(newTrophy.winnerId ? { winnerId: newTrophy.winnerId } : {}),
+        awards: newTrophy.awards || [],
+      });
+      setTrophies([
+        ...trophies,
+        { ...newTrophy, id: docRef.id, image: imgUrl } as Trophy,
+      ]);
+      setNewTrophy({ awards: [] });
+      setTrophyImageFile(null);
+      setShowAddTrophy(false);
+      toast.success("Trophy added!");
+    } catch (err: any) {
+      toast.error("Failed to add trophy");
+    } finally {
+      setLoadingAction(false);
+    }
+  };
+
+  return (
+    <div className="container">
+      {/* Tabs */}
+      <div className="tabs fade-in">
+        {["players", "clubs", "trophies"].map((tab) => (
+          <div
+            key={tab}
+            className={`tab ${activeTab === tab ? "active bounce" : ""}`}
+            onClick={() => setActiveTab(tab as "players" | "clubs" | "trophies")}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </div>
+        ))}
+      </div>
+
+      {/* Players Tab */}
+      {activeTab === "players" && (
+        <div className="fade-in">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <i className="fa-solid fa-plus cursor-pointer pulse" onClick={() => setShowAddPlayer(true)}></i>
+          </div>
+          {loading ? (
+            <LoadingSpinner />
+          ) : players.length === 0 ? (
+            <div className="no-data">
+              <i className="fa-regular fa-face-sad-tear"></i>
+              <p>No players added yet.</p>
+            </div>
+          ) : (
+            <div className="list">
+              {players.map((p, idx) => (
+                <div key={p.id} className="card slide-in" style={{ animationDelay: `${idx * 60}ms` }}>
+                  <img src={p.pfp} alt={p.fullName} />
+                  <div className="card-info">
+                    <div>{p.fullName}</div>
+                    <div>{p.age} yrs | {p.nationality} | {p.club}</div>
+                    <div>Goals: {p.goals} | Assists: {p.assists}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add Player Popup */}
+          {showAddPlayer && (
+            <div className="popup-overlay fade-in">
+              <div className="popup popup-animate">
+                <i className="fa-solid fa-x close" onClick={() => setShowAddPlayer(false)}></i>
+                <h2>Add Player</h2>
+                <input type="file" accept="image/*" onChange={(e) => e.target.files && setPlayerImageFile(e.target.files[0])} />
+                <input type="text" placeholder="Full Name" onChange={(e) => setNewPlayer({ ...newPlayer, fullName: e.target.value })} />
+                <input type="number" placeholder="Age" onChange={(e) => setNewPlayer({ ...newPlayer, age: e.target.valueAsNumber })} />
+                <input type="text" placeholder="Nationality" onChange={(e) => setNewPlayer({ ...newPlayer, nationality: e.target.value })} />
+                <select onChange={(e) => setNewPlayer({ ...newPlayer, club: e.target.value })}>
+                  <option value="">Select Club</option>
+                  {clubs.map((c) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
+                  ))}
+                </select>
+                <input type="number" placeholder="Goals" onChange={(e) => setNewPlayer({ ...newPlayer, goals: e.target.valueAsNumber })} />
+                <input type="number" placeholder="Assists" onChange={(e) => setNewPlayer({ ...newPlayer, assists: e.target.valueAsNumber })} />
+                <button onClick={handleAddPlayer} disabled={loadingAction}>
+                  {loadingAction ? "Adding..." : "Add Player"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Clubs Tab */}
+      {activeTab === "clubs" && (
+        <div className="fade-in">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <i className="fa-solid fa-plus cursor-pointer pulse" onClick={() => setShowAddClub(true)}></i>
+          </div>
+          {loading ? (
+            <LoadingSpinner />
+          ) : clubs.length === 0 ? (
+            <div className="no-data">
+              <i className="fa-regular fa-face-sad-tear"></i>
+              <p>No clubs added yet.</p>
+            </div>
+          ) : (
+            <div className="list">
+              {clubs.map((c, idx) => (
+                <div key={c.id} className="card slide-in" style={{ animationDelay: `${idx * 60}ms` }}>
+                  <img src={c.logo} alt={c.name} />
+                  <div className="card-info">
+                    <div>{c.name}</div>
+                    <div>President: {c.president} | Coach: {c.coach}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add Club Popup */}
+          {showAddClub && (
+            <div className="popup-overlay fade-in">
+              <div className="popup popup-animate">
+                <i className="fa-solid fa-x close" onClick={() => setShowAddClub(false)}></i>
+                <h2>Add Club</h2>
+                <input type="file" accept="image/*" onChange={(e) => e.target.files && setClubLogoFile(e.target.files[0])} />
+                <input type="text" placeholder="Club Name" onChange={(e) => setNewClub({ ...newClub, name: e.target.value })} />
+                <input type="text" placeholder="President Name" onChange={(e) => setNewClub({ ...newClub, president: e.target.value })} />
+                <input type="text" placeholder="Coach Name" onChange={(e) => setNewClub({ ...newClub, coach: e.target.value })} />
+                <button onClick={handleAddClub} disabled={loadingAction}>
+                  {loadingAction ? "Adding..." : "Add Club"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Trophies Tab */}
+      {activeTab === "trophies" && (
+        <div className="fade-in">
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+            <i className="fa-solid fa-plus cursor-pointer pulse" onClick={() => setShowAddTrophy(true)}></i>
+          </div>
+          {loading ? (
+            <LoadingSpinner />
+          ) : trophies.length === 0 ? (
+            <div className="no-data">
+              <i className="fa-regular fa-face-sad-tear"></i>
+              <p>No trophies added yet.</p>
+            </div>
+          ) : (
+            <div className="list">
+              {trophies.map((t, idx) => (
+                <div key={t.id} className="card slide-in" style={{ animationDelay: `${idx * 60}ms` }}>
+                  <img src={t.image} alt={t.name} />
+                  <div className="card-info">
+                    <div>{t.name}</div>
+                    <div>Winner: {clubs.find((c) => c.id === t.winnerId)?.name || "Unknown"}</div>
+                    <div>Awards: {t.awards?.join(", ") || "None"}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add Trophy Popup */}
+          {showAddTrophy && (
+            <div className="popup-overlay fade-in">
+              <div className="popup popup-animate">
+                <i
+                  className="fa-solid fa-x close"
+                  onClick={() => setShowAddTrophy(false)}
+                ></i>
+                <h2>Add Trophy</h2>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) =>
+                    e.target.files && setTrophyImageFile(e.target.files[0])
+                  }
+                />
+                <input
+                  type="text"
+                  placeholder="Trophy Name"
+                  onChange={(e) =>
+                    setNewTrophy({ ...newTrophy, name: e.target.value })
+                  }
+                />
+                <select
+                  value={newTrophy.winnerId || ""}
+                  onChange={(e) =>
+                    setNewTrophy({
+                      ...newTrophy,
+                      winnerId: e.target.value || undefined,
+                    })
+                  }
+                >
+                  <option value="">Select Winning Club (optional)</option>
+                  {clubs.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <div>
+                  {["Golden Boot", "MVP", "Best Defender", "Best Midfielder", "Best Goalkeeper"].map((award) => (
+                    <label key={award} style={{ display: "block" }}>
+                      <input
+                        type="checkbox"
+                        checked={newTrophy.awards?.includes(award) || false}
+                        onChange={(e) => {
+                          const awards = Array.isArray(newTrophy.awards) ? [...newTrophy.awards] : [];
+                          if (e.target.checked) awards.push(award);
+                          else {
+                            const idx = awards.indexOf(award);
+                            if (idx > -1) awards.splice(idx, 1);
+                          }
+                          setNewTrophy({ ...newTrophy, awards });
+                        }}
+                      />{" "}
+                      {award}
+                    </label>
+                  ))}
+                </div>
+                <button onClick={handleAddTrophy} disabled={loadingAction}>
+                  {loadingAction ? "Adding..." : "Add Trophy"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Home;
