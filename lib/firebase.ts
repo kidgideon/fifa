@@ -1,8 +1,6 @@
 // firebase.ts
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -16,14 +14,12 @@ const firebaseConfig = {
   measurementId: "G-X0Z9T6K67Q",
 };
 
-// Initialize Firebase
+// Initialize Firebase app
 const app = initializeApp(firebaseConfig);
-const analytics = typeof window !== "undefined" ? getAnalytics(app) : null;
 
 // Initialize services
 const db = getFirestore(app);
-const auth = getAuth(app);
 const storage = getStorage(app);
 
 // Export the app and services
-export { app, analytics, db, auth, storage };
+export { app, db, storage };
