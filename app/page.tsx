@@ -117,7 +117,7 @@ const Home: React.FC = () => {
         ...(doc.data() as T),
       }));
       setData(data);
-    } catch (err) {
+    } catch {
       toast.error(`Failed to fetch ${collectionName}`);
     } finally {
       setLoading(false);
@@ -530,10 +530,10 @@ const Home: React.FC = () => {
           {showAddPlayer && (
             <div className="popup-overlay fade-in">
               <AddPlayerForm
+                playerImageFile={playerImageFile}
                 clubs={clubs}
                 newPlayer={newPlayer}
                 setNewPlayer={setNewPlayer}
-                playerImageFile={playerImageFile}
                 setPlayerImageFile={setPlayerImageFile}
                 handleAdd={handleAddPlayer}
                 setShowAdd={setShowAddPlayer}
@@ -547,9 +547,9 @@ const Home: React.FC = () => {
           {editPlayer && (
             <div className="popup-overlay fade-in">
               <EditPlayerForm
+                playerImageFile={playerImageFile}
                 player={editPlayer}
                 setPlayer={setEditPlayer}
-                playerImageFile={playerImageFile}
                 setPlayerImageFile={setPlayerImageFile}
                 handleEdit={handleEditPlayer}
                 setShowEdit={setEditPlayer}
@@ -785,7 +785,7 @@ const AddPlayerForm: React.FC<AddPlayerProps> = ({
   clubs,
   newPlayer,
   setNewPlayer,
-  playerImageFile,
+  /* playerImageFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setPlayerImageFile,
   handleAdd,
   setShowAdd,
@@ -872,7 +872,7 @@ interface EditPlayerProps {
 const EditPlayerForm: React.FC<EditPlayerProps> = ({
   player,
   setPlayer,
-  playerImageFile,
+  /* playerImageFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setPlayerImageFile,
   handleEdit,
   setShowEdit,
@@ -933,7 +933,7 @@ interface AddClubProps {
 const AddClubForm: React.FC<AddClubProps> = ({
   newClub,
   setNewClub,
-  clubLogoFile,
+  /* clubLogoFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setClubLogoFile,
   handleAdd,
   setShowAdd,
@@ -987,7 +987,7 @@ interface EditClubProps {
 const EditClubForm: React.FC<EditClubProps> = ({
   club,
   setClub,
-  clubLogoFile,
+  /* clubLogoFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setClubLogoFile,
   handleEdit,
   setShowEdit,
@@ -1046,7 +1046,7 @@ const AddTrophyForm: React.FC<AddTrophyProps> = ({
   players,
   newTrophy,
   setNewTrophy,
-  trophyImageFile,
+  /* trophyImageFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setTrophyImageFile,
   handleAdd,
   setShowAdd,
@@ -1096,7 +1096,7 @@ const AddTrophyForm: React.FC<AddTrophyProps> = ({
                 let awards = Array.isArray(newTrophy.awards)
                   ? [...newTrophy.awards]
                   : [];
-                let awardWinners = { ...(newTrophy.awardWinners || {}) };
+                const awardWinners = { ...(newTrophy.awardWinners || {}) };
                 if (e.target.checked) {
                   awards.push(award);
                 } else {
@@ -1156,7 +1156,7 @@ const EditTrophyForm: React.FC<EditTrophyProps> = ({
   players,
   trophy,
   setTrophy,
-  trophyImageFile,
+  /* trophyImageFile, */ // eslint-disable-line @typescript-eslint/no-unused-vars
   setTrophyImageFile,
   handleEdit,
   setShowEdit,
@@ -1206,7 +1206,7 @@ const EditTrophyForm: React.FC<EditTrophyProps> = ({
                 let awards = Array.isArray(trophy.awards)
                   ? [...trophy.awards]
                   : [];
-                let awardWinners = { ...(trophy.awardWinners || {}) };
+                const awardWinners = { ...(trophy.awardWinners || {}) };
                 if (e.target.checked) {
                   awards.push(award);
                 } else {
